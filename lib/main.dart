@@ -120,14 +120,15 @@ class _InstallCheckPageState extends State<InstallCheckPage> {
               ),
             ),
             const SizedBox(height: 16),
-            Row(
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
               children: [
                 ElevatedButton.icon(
                   onPressed: checking ? null : _check,
                   icon: const Icon(Icons.refresh),
                   label: const Text('Recheck'),
                 ),
-                const SizedBox(width: 8),
                 ElevatedButton.icon(
                   onPressed: (ageOk && sopsOk && !checking)
                       ? () => Navigator.of(context).pushReplacement(
@@ -474,29 +475,38 @@ class _ManagePageState extends State<ManagePage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Project: ${widget.projectRoot}'),
-            Text('Identity: ${widget.ageIdentityPath}'),
+            Text(
+              'Project: ${widget.projectRoot}',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              softWrap: false,
+            ),
+            Text(
+              'Identity: ${widget.ageIdentityPath}',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              softWrap: false,
+            ),
             const SizedBox(height: 8),
-            Row(
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
               children: [
                 ElevatedButton.icon(
                   onPressed: busy ? null : _saveKeys,
                   icon: const Icon(Icons.save),
                   label: const Text('Save Keys & Update .sops.yaml'),
                 ),
-                const SizedBox(width: 8),
                 ElevatedButton.icon(
                   onPressed: busy ? null : _updateKeys,
                   icon: const Icon(Icons.sync),
                   label: const Text('sops updatekeys'),
                 ),
-                const SizedBox(width: 8),
                 ElevatedButton.icon(
                   onPressed: busy ? null : _unlock,
                   icon: const Icon(Icons.lock_open),
                   label: const Text('Unlock Project'),
                 ),
-                const SizedBox(width: 8),
                 ElevatedButton.icon(
                   onPressed: busy ? null : _lock,
                   icon: const Icon(Icons.lock),
@@ -611,9 +621,13 @@ class _ManagePageState extends State<ManagePage> {
             const SizedBox(height: 12),
             const Text('Output'),
             const SizedBox(height: 6),
-            SizedBox(
-              height: 120,
+            Flexible(
+              fit: FlexFit.loose,
               child: Container(
+                constraints: const BoxConstraints(
+                  minHeight: 80,
+                  maxHeight: 240,
+                ),
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
                   border: Border.all(color: Colors.grey.shade400),
