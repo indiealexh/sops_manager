@@ -92,6 +92,7 @@ class _InstallCheckPageState extends State<InstallCheckPage> {
             const SizedBox(height: 16),
             Expanded(
               child: Container(
+                width: double.infinity,
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
                   border: Border.all(color: Colors.grey.shade400),

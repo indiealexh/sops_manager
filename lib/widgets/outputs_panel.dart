@@ -7,6 +7,7 @@ class OutputsPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
+      width: double.infinity,
       constraints: const BoxConstraints(minHeight: 80, maxHeight: 240),
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
