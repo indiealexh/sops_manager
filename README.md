@@ -7,6 +7,8 @@ Desktop Flutter app that helps you manage SOPS‑encrypted configuration files a
 - Scans your project for files matched by path_regex and shows which are encrypted
 - Batch runs common sops actions: updatekeys, decrypt (unlock), encrypt (lock)
 
+![Sops Manager Screenshot](docs/assets/sops_manager-image.jpg)
+
 ## Requirements
 - SOPS CLI available on PATH
 - Age tools on PATH (age, age-keygen) and an Age identity file (e.g. ~/.config/age/keys.txt)
