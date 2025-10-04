@@ -57,6 +57,8 @@ class _ManagePageState extends State<ManagePage> {
     _sub = LogBus.instance.stream.listen((e) {
       setState(() => _logs.add(e));
     });
+    // Auto-scan on load so user doesn't have to click Scan manually
+    Future.microtask(_scanFiles);
   }
 
   @override
