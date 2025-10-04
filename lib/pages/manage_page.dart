@@ -59,11 +59,25 @@ class _ManagePageState extends State<ManagePage> {
     setState(() => busy = true);
     try {
       await SopsService.writePublicKeysYaml(publicKeysPath, entries);
-      await SopsService.writeSopsConfig(
-        sopsConfigPath,
-        entries.map((e) => e.key).toList(),
-      );
-      setState(() => log = 'Saved public-age-keys.yaml and updated .sops.yaml');
+      final recipients = entries.map((e) => e.key).toList();
+      final sopsFile = File(sopsConfigPath);
+      if (await sopsFile.exists()) {
+        final updated = await SopsService.updateSopsRecipients(
+          sopsConfigPath,
+          recipients,
+        );
+        setState(
+          () => log =
+              'Saved public-age-keys.yaml and updated recipients in .sops.yaml for ' +
+              updated.toString() +
+              ' creation_rule(s).',
+        );
+      } else {
+        await SopsService.writeSopsConfig(sopsConfigPath, recipients);
+        setState(
+          () => log = 'Saved public-age-keys.yaml and created .sops.yaml',
+        );
+      }
     } catch (e) {
       setState(() => log = 'Error saving: $e');
     } finally {

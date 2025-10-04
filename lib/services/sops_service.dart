@@ -63,9 +63,18 @@ class SopsService {
 
     await writePublicKeysYaml(pkPath, current);
 
-    // Ensure .sops.yaml
-    await writeSopsConfig(sopsPath, current.map((e) => e.key).toList());
-    msgs.add('Wrote .sops.yaml with ${current.length} recipient(s).');
+    // .sops.yaml: create if missing; otherwise only update recipients under existing creation_rules
+    final recipients = current.map((e) => e.key).toList();
+    final sopsFile = File(sopsPath);
+    if (await sopsFile.exists()) {
+      final updated = await updateSopsRecipients(sopsPath, recipients);
+      msgs.add(
+        'Updated recipients in existing .sops.yaml for $updated creation_rule(s).',
+      );
+    } else {
+      await writeSopsConfig(sopsPath, recipients);
+      msgs.add('Created .sops.yaml with ${recipients.length} recipient(s).');
+    }
   }
 
   static List<PublicKeyEntry> parsePublicKeysYaml(String content) {
@@ -136,6 +145,156 @@ class SopsService {
     await File(path).writeAsString(b.toString());
   }
 
+  static Future<int> updateSopsRecipients(
+    String path,
+    List<String> recipients,
+  ) async {
+    final file = File(path);
+    if (!await file.exists()) return 0;
+    final content = await file.readAsString();
+    final lines = const LineSplitter().convert(content);
+
+    int indentOf(String s) => s.length - s.trimLeft().length;
+    String indent(int n) => ' ' * n;
+
+    // Find creation_rules:
+    int crStart = -1;
+    int crIndent = 0;
+    for (int i = 0; i < lines.length; i++) {
+      final t = lines[i].trimLeft();
+      if (t.startsWith('creation_rules:')) {
+        crStart = i;
+        crIndent = indentOf(lines[i]);
+        break;
+      }
+    }
+    if (crStart == -1) {
+      // Nothing to update
+      return 0;
+    }
+
+    // Find end of creation_rules block
+    int crEnd = lines.length;
+    for (int i = crStart + 1; i < lines.length; i++) {
+      final line = lines[i];
+      if (line.trim().isEmpty) continue;
+      if (indentOf(line) <= crIndent && !line.trimLeft().startsWith('-')) {
+        crEnd = i;
+        break;
+      }
+    }
+
+    // Collect rule ranges [start, end)
+    final ruleRanges = <List<int>>[];
+    int i = crStart + 1;
+    while (i < crEnd) {
+      final line = lines[i];
+      final trimmed = line.trimLeft();
+      final ind = indentOf(line);
+      if (trimmed.startsWith('-')) {
+        final ruleIndent = ind;
+        int j = i + 1;
+        while (j < crEnd) {
+          final l = lines[j];
+          final ltrim = l.trimLeft();
+          final lind = indentOf(l);
+          if (l.trim().isEmpty) {
+            j++;
+            continue;
+          }
+          if (lind <= ruleIndent && ltrim.startsWith('-')) {
+            break;
+          }
+          if (lind <= crIndent && !ltrim.startsWith('-')) {
+            break;
+          }
+          j++;
+        }
+        ruleRanges.add([i, j]);
+        i = j;
+        continue;
+      }
+      i++;
+    }
+
+    if (ruleRanges.isEmpty) {
+      return 0;
+    }
+
+    final newLines = List<String>.from(lines);
+    int updatedCount = 0;
+
+    List<String> buildAgeBlock(int indentAge) {
+      if (recipients.isEmpty) {
+        return [indent(indentAge) + 'age: []'];
+      }
+      final out = <String>[];
+      out.add(indent(indentAge) + 'age:');
+      final ir = indentAge + 2;
+      for (final r in recipients) {
+        out.add(indent(ir) + '- ' + r);
+      }
+      return out;
+    }
+
+    for (int idx = ruleRanges.length - 1; idx >= 0; idx--) {
+      final start = ruleRanges[idx][0];
+      final end = ruleRanges[idx][1];
+
+      // Find existing age block inside this rule
+      int ageStart = -1;
+      int ageIndent = 0;
+      int scan = start + 1;
+      final ruleIndent = indentOf(newLines[start]);
+      while (scan < end) {
+        final ln = newLines[scan];
+        if (ln.trim().isEmpty) {
+          scan++;
+          continue;
+        }
+        final t = ln.trimLeft();
+        final ind = indentOf(ln);
+        if (t.startsWith('age:') && ind >= ruleIndent + 2) {
+          ageStart = scan;
+          ageIndent = ind;
+          break;
+        }
+        scan++;
+      }
+
+      if (ageStart != -1) {
+        // Determine end of existing age block
+        int k = ageStart + 1;
+        while (k < end) {
+          final ln = newLines[k];
+          if (ln.trim().isEmpty) {
+            k++;
+            continue;
+          }
+          final ind = indentOf(ln);
+          if (ind <= ageIndent) break;
+          k++;
+        }
+        newLines.removeRange(ageStart, k);
+        final block = buildAgeBlock(ageIndent);
+        newLines.insertAll(ageStart, block);
+        updatedCount++;
+      } else {
+        // Insert at end of rule block (before trailing blanks)
+        int insert = end;
+        while (insert - 1 > start && newLines[insert - 1].trim().isEmpty) {
+          insert--;
+        }
+        final block = buildAgeBlock(ruleIndent + 2);
+        newLines.insertAll(insert, block);
+        updatedCount++;
+      }
+    }
+
+    await file.writeAsString(newLines.join('\n'));
+    return updatedCount;
+  }
+
   static Future<List<String>> findSopsFiles(String root) async {
     final result = <String>[];
     final dir = Directory(root);
@@ -177,6 +336,9 @@ class SopsService {
       } catch (_) {
         // ignore config read/parse errors and use fallback
       }
+      if (kDebugMode) {
+        print(regexps);
+      }
       if (regexps.isEmpty) {
         // Fallback to the historical default
         regexps.add(RegExp(r'.*\.(yaml|yml|json|env)$'));
@@ -209,10 +371,7 @@ class SopsService {
         if (len > 5 * 1024 * 1024) continue; // skip very large files
         try {
           final content = await entity.readAsString();
-          if (content.contains('\nsops:') || content.contains('"sops"')) {
-            // Likely a sops-encrypted file
-            result.add(rel);
-          }
+          result.add(rel);
         } catch (_) {
           // ignore unreadable files
         }
