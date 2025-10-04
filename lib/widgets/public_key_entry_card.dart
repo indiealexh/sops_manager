@@ -44,12 +44,33 @@ class PublicKeyEntryCard extends StatelessWidget {
             Row(
               children: [
                 Expanded(
-                  child: TextFormField(
-                    initialValue: entry.ownerType,
-                    decoration: const InputDecoration(
-                      labelText: 'ownerType (user/cluster)',
-                    ),
-                    onChanged: (v) => entry.ownerType = v.trim(),
+                  child: StatefulBuilder(
+                    builder: (context, setState) {
+                      const allowed = ['user', 'cluster'];
+                      if (!allowed.contains(entry.ownerType)) {
+                        entry.ownerType = 'user';
+                      }
+                      return DropdownButtonFormField<String>(
+                        value: entry.ownerType,
+                        decoration: const InputDecoration(
+                          labelText: 'ownerType',
+                        ),
+                        items: const [
+                          DropdownMenuItem(value: 'user', child: Text('user')),
+                          DropdownMenuItem(
+                            value: 'cluster',
+                            child: Text('cluster'),
+                          ),
+                        ],
+                        onChanged: busy
+                            ? null
+                            : (v) {
+                                if (v == null) return;
+                                entry.ownerType = v;
+                                setState(() {});
+                              },
+                      );
+                    },
                   ),
                 ),
                 const SizedBox(width: 8),
