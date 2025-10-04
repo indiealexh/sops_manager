@@ -76,11 +76,11 @@ class _ManagePageState extends State<ManagePage> {
       final files = await SopsService.findSopsFiles(widget.projectRoot);
       final outputs = <String>[];
       for (final f in files) {
-        final res = await SopsService.runSops([
-          'updatekeys',
-          '-y',
-          f,
-        ], cwd: widget.projectRoot);
+        final res = await SopsService.runSops(
+          ['updatekeys', '-y', f],
+          cwd: widget.projectRoot,
+          identityPath: widget.ageIdentityPath,
+        );
         outputs.add(
           '[updatekeys] $f: exit=${res.exitCode}${res.stderr.isNotEmpty ? ' err=${res.stderr}' : ''}',
         );
@@ -97,11 +97,11 @@ class _ManagePageState extends State<ManagePage> {
       final files = await SopsService.findSopsFiles(widget.projectRoot);
       final outputs = <String>[];
       for (final f in files) {
-        final res = await SopsService.runSops([
-          '-d',
-          '-i',
-          f,
-        ], cwd: widget.projectRoot);
+        final res = await SopsService.runSops(
+          ['-d', '-i', f],
+          cwd: widget.projectRoot,
+          identityPath: widget.ageIdentityPath,
+        );
         outputs.add(
           '[decrypt] $f: exit=${res.exitCode}${res.stderr.isNotEmpty ? ' err=${res.stderr}' : ''}',
         );
@@ -118,11 +118,11 @@ class _ManagePageState extends State<ManagePage> {
       final files = await SopsService.findSopsFiles(widget.projectRoot);
       final outputs = <String>[];
       for (final f in files) {
-        final res = await SopsService.runSops([
-          '-e',
-          '-i',
-          f,
-        ], cwd: widget.projectRoot);
+        final res = await SopsService.runSops(
+          ['-e', '-i', f],
+          cwd: widget.projectRoot,
+          identityPath: widget.ageIdentityPath,
+        );
         outputs.add(
           '[encrypt] $f: exit=${res.exitCode}${res.stderr.isNotEmpty ? ' err=${res.stderr}' : ''}',
         );

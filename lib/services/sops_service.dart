@@ -13,7 +13,7 @@ class SopsService {
 
   static Future<String?> derivePublicKey(String identityPath) async {
     try {
-      final res = await Process.run('age-keygen', ['-y', '-i', identityPath]);
+      final res = await Process.run('age-keygen', ['-y', identityPath]);
       if (res.exitCode == 0) {
         final out = (res.stdout as String).toString();
         final m = RegExp(r'public key:\s*(age1[0-9a-z]+)').firstMatch(out);
@@ -179,9 +179,19 @@ class SopsService {
   static Future<ProcResult> runSops(
     List<String> args, {
     required String cwd,
+    String? identityPath,
   }) async {
     try {
-      final res = await Process.run('sops', args, workingDirectory: cwd);
+      final env = Map<String, String>.from(Platform.environment);
+      if (identityPath != null && identityPath.isNotEmpty) {
+        env['SOPS_AGE_KEY_FILE'] = identityPath;
+      }
+      final res = await Process.run(
+        'sops',
+        args,
+        workingDirectory: cwd,
+        environment: env,
+      );
       return ProcResult(
         res.exitCode,
         (res.stdout ?? '').toString(),
