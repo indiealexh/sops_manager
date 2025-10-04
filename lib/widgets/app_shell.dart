@@ -4,7 +4,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../pages/install_check_page.dart';
 import '../pages/setup_page.dart';
 import '../pages/manage_page.dart';
-import '../pages/onboarding_stepper.dart';
 
 class AppShell extends StatefulWidget {
   final ThemeMode themeMode;
@@ -24,8 +23,6 @@ class _AppShellState extends State<AppShell> {
   String? _lastProjectRoot;
   String? _lastIdentityPath;
   bool _loaded = false;
-  bool _onboardingComplete = false;
-  bool _navigatedOnboarding = false;
 
   static const _kRootKey = 'lastProjectRoot';
   static const _kIdKey = 'lastAgeIdentityPath';
@@ -42,19 +39,9 @@ class _AppShellState extends State<AppShell> {
       final prefs = await SharedPreferences.getInstance();
       _lastProjectRoot = prefs.getString(_kRootKey);
       _lastIdentityPath = prefs.getString(_kIdKey);
-      _onboardingComplete = prefs.getBool(_kOnboarding) ?? false;
       setState(() {
         _loaded = true;
       });
-      // Auto-launch onboarding if needed
-      if ((!_onboardingComplete) ||
-          _lastProjectRoot == null ||
-          _lastIdentityPath == null) {
-        if (!_navigatedOnboarding) {
-          _navigatedOnboarding = true;
-          Future.microtask(_runOnboarding);
-        }
-      }
     } catch (_) {
       setState(() => _loaded = true);
     }
@@ -110,34 +97,6 @@ class _AppShellState extends State<AppShell> {
         PopupMenuItem(
           value: ThemeMode.dark,
           child: ListTile(leading: Icon(Icons.dark_mode), title: Text('Dark')),
-        ),
-      ],
-    );
-  }
-
-  void _runOnboarding() {
-    if (!mounted) return;
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) =>
-            OnboardingStepperPage(appBarActions: [_buildThemeModeButton()]),
-      ),
-    );
-  }
-
-  Widget _buildOverflowMenu() {
-    return PopupMenuButton<String>(
-      icon: const Icon(Icons.more_vert),
-      onSelected: (v) {
-        if (v == 'onboarding') _runOnboarding();
-      },
-      itemBuilder: (context) => const [
-        PopupMenuItem(
-          value: 'onboarding',
-          child: ListTile(
-            leading: Icon(Icons.directions_walk),
-            title: Text('Run onboarding again'),
-          ),
         ),
       ],
     );
@@ -223,7 +182,7 @@ class _AppShellState extends State<AppShell> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('SOPS Manager'),
-        actions: [_buildThemeModeButton(), _buildOverflowMenu()],
+        actions: [_buildThemeModeButton()],
       ),
       body: Row(
         children: [
