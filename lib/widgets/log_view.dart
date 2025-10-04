@@ -93,7 +93,6 @@ class _LogViewState extends State<LogView> {
               selected: _autoScroll,
               onSelected: (v) => setState(() => _autoScroll = v),
             ),
-            const Spacer(),
             TextButton.icon(
               onPressed: widget.onClear,
               icon: const Icon(Icons.clear),
