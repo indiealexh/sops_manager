@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../models/public_key_entry.dart';
@@ -116,6 +117,9 @@ class _ManagePageState extends State<ManagePage> {
     setState(() => busy = true);
     try {
       final files = await SopsService.findSopsFiles(widget.projectRoot);
+      if (kDebugMode) {
+        print(files);
+      }
       final outputs = <String>[];
       for (final f in files) {
         final res = await SopsService.runSops(

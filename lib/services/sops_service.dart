@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
+
 import '../models/public_key_entry.dart';
 import '../models/proc_result.dart';
 import '../utils/file_path.dart';
@@ -139,25 +141,80 @@ class SopsService {
     final dir = Directory(root);
     if (!await dir.exists()) return result;
 
-    final allowedExt = {'.yaml', '.yml', '.json', '.env'};
+    // Helper: read path_regex patterns from .sops.yaml at project root.
+    Future<List<RegExp>> _readPathRegexps() async {
+      final regexps = <RegExp>[];
+      try {
+        final cfgPath = FilePath.join(root, '.sops.yaml');
+        final cfgFile = File(cfgPath);
+        if (await cfgFile.exists()) {
+          final content = await cfgFile.readAsString();
+          final lines = const LineSplitter().convert(content);
+          // Matches: path_regex: '...'
+          final pattern = RegExp(
+            r'path_regex\s*:\s*(?:([\x22\x27])(.*?)\1|(.*))',
+          );
+          for (final raw in lines) {
+            final line = raw.trim();
+            final m = pattern.firstMatch(line);
+            if (m != null) {
+              var value = (m.group(2) ?? m.group(3) ?? '').trim();
+              // Trim inline comments for unquoted values only
+              if (m.group(2) == null) {
+                final hash = value.indexOf(' #');
+                if (hash != -1) value = value.substring(0, hash).trim();
+              }
+              if (value.isNotEmpty) {
+                try {
+                  regexps.add(RegExp(value));
+                } catch (_) {
+                  // Skip invalid regex
+                }
+              }
+            }
+          }
+        }
+      } catch (_) {
+        // ignore config read/parse errors and use fallback
+      }
+      if (regexps.isEmpty) {
+        // Fallback to the historical default
+        regexps.add(RegExp(r'.*\.(yaml|yml|json|env)$'));
+      }
+      return regexps;
+    }
+
+    String _norm(String p) => p.replaceAll('\\', '/');
+
+    final pathRegexps = await _readPathRegexps();
 
     await for (final entity in dir.list(recursive: true, followLinks: false)) {
       if (entity is File) {
         final name = entity.path.split(Platform.pathSeparator).last;
         if (name == '.sops.yaml' || name == 'public-age-keys.yaml') continue;
-        final ext = _extension(name).toLowerCase();
-        if (!allowedExt.contains(ext)) continue;
+
+        final rel = _relativeTo(root, entity.path);
+        final relNorm = _norm(rel);
+
+        bool matches = false;
+        for (final re in pathRegexps) {
+          if (re.hasMatch(relNorm)) {
+            matches = true;
+            break;
+          }
+        }
+        if (!matches) continue;
+
         final len = await entity.length();
         if (len > 5 * 1024 * 1024) continue; // skip very large files
         try {
           final content = await entity.readAsString();
           if (content.contains('\nsops:') || content.contains('"sops"')) {
-            // Likely a sops file
-            final rel = _relativeTo(root, entity.path);
+            // Likely a sops-encrypted file
             result.add(rel);
           }
         } catch (_) {
-          // ignore
+          // ignore unreadable files
         }
       }
     }
