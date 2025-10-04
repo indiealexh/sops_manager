@@ -1,11 +1,15 @@
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../services/sops_service.dart';
 import 'manage_page.dart';
 
 class SetupPage extends StatefulWidget {
-  const SetupPage({super.key});
+  final void Function(String ageKey, String projectRoot, String publicKey)?
+  onComplete;
+  final List<Widget>? appBarActions;
+  const SetupPage({super.key, this.onComplete, this.appBarActions});
 
   @override
   State<SetupPage> createState() => _SetupPageState();
@@ -100,6 +104,18 @@ class _SetupPageState extends State<SetupPage> {
 
       setState(() => output = messages.join('\n'));
 
+      // Persist last used paths
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('lastProjectRoot', root);
+        await prefs.setString('lastAgeIdentityPath', ageKey);
+      } catch (_) {}
+
+      if (widget.onComplete != null) {
+        widget.onComplete!(ageKey, root, pubKey);
+        return;
+      }
+
       if (!mounted) return;
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(
@@ -119,7 +135,10 @@ class _SetupPageState extends State<SetupPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Initial Setup')),
+      appBar: AppBar(
+        title: const Text('Initial Setup'),
+        actions: widget.appBarActions,
+      ),
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(

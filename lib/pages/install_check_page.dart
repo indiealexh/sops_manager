@@ -5,7 +5,9 @@ import 'package:flutter/material.dart';
 import '../pages/setup_page.dart';
 
 class InstallCheckPage extends StatefulWidget {
-  const InstallCheckPage({super.key});
+  final VoidCallback? onContinue;
+  final List<Widget>? appBarActions;
+  const InstallCheckPage({super.key, this.onContinue, this.appBarActions});
 
   @override
   State<InstallCheckPage> createState() => _InstallCheckPageState();
@@ -62,7 +64,10 @@ class _InstallCheckPageState extends State<InstallCheckPage> {
     final ageOk = ageInstalled == true;
     final sopsOk = sopsInstalled == true;
     return Scaffold(
-      appBar: AppBar(title: const Text('SOPS Manager - Requirements')),
+      appBar: AppBar(
+        title: const Text('SOPS Manager - Requirements'),
+        actions: widget.appBarActions,
+      ),
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -113,9 +118,17 @@ class _InstallCheckPageState extends State<InstallCheckPage> {
                 ),
                 ElevatedButton.icon(
                   onPressed: (ageOk && sopsOk && !checking)
-                      ? () => Navigator.of(context).pushReplacement(
-                          MaterialPageRoute(builder: (_) => const SetupPage()),
-                        )
+                      ? () {
+                          if (widget.onContinue != null) {
+                            widget.onContinue!();
+                          } else {
+                            Navigator.of(context).pushReplacement(
+                              MaterialPageRoute(
+                                builder: (_) => const SetupPage(),
+                              ),
+                            );
+                          }
+                        }
                       : null,
                   icon: const Icon(Icons.arrow_forward),
                   label: const Text('Continue'),

@@ -1,20 +1,6 @@
 # sops_manager
 
-A new Flutter project.
-
-## Getting Started
-
-This project is a starting point for a Flutter application.
-
-A few resources to get you started if this is your first Flutter project:
-
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
-
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
-
+Flutter App to help manage SOPS encrypted files
 
 ## Project structure (updated on 2025-10-03)
 
@@ -39,7 +25,3 @@ lib/
     responsive_action_bar.dart  # Wrap-based responsive button bar
 ```
 
-Notes:
-- App behavior is unchanged; this is a pure organization refactor for discoverability.
-- If you add new pages or services, follow the same folder conventions.
-- Desktop entitlements and pubspec dependencies remain as they were.

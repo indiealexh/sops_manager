@@ -12,10 +12,12 @@ import '../widgets/responsive_action_bar.dart';
 class ManagePage extends StatefulWidget {
   final String projectRoot;
   final String ageIdentityPath;
+  final List<Widget>? appBarActions;
   const ManagePage({
     super.key,
     required this.projectRoot,
     required this.ageIdentityPath,
+    this.appBarActions,
   });
 
   @override
@@ -154,7 +156,10 @@ class _ManagePageState extends State<ManagePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Manage Public Keys & Project')),
+      appBar: AppBar(
+        title: const Text('Manage Public Keys & Project'),
+        actions: widget.appBarActions,
+      ),
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
