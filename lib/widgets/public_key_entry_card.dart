@@ -17,10 +17,11 @@ class PublicKeyEntryCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Card(
-      margin: const EdgeInsets.symmetric(vertical: 6),
+      margin: const EdgeInsets.symmetric(vertical: 8.0),
       child: Padding(
         padding: const EdgeInsets.all(8.0),
         child: Column(
+          spacing: 8.0,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(

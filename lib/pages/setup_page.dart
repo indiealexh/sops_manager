@@ -2,6 +2,7 @@ import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../services/log_bus.dart';
 import '../services/sops_service.dart';
 import 'manage_page.dart';
 
@@ -69,6 +70,7 @@ class _SetupPageState extends State<SetupPage> {
       busy = true;
       output = '';
     });
+    LogBus.instance.info('Setup started', scope: 'Setup');
     final ageKey = ageKeyCtrl.text.trim();
     final root = projectRootCtrl.text.trim();
     var pubKey = publicKeyCtrl.text.trim();
@@ -103,14 +105,22 @@ class _SetupPageState extends State<SetupPage> {
       );
 
       setState(() => output = messages.join('\n'));
+      for (final m in messages) {
+        LogBus.instance.info(m, scope: 'Setup');
+      }
 
       // Persist last used paths
       try {
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString('lastProjectRoot', root);
         await prefs.setString('lastAgeIdentityPath', ageKey);
+        LogBus.instance.info('Persisted last used paths', scope: 'Setup');
       } catch (_) {}
 
+      LogBus.instance.info(
+        'Setup complete. Navigating to Manage.',
+        scope: 'Setup',
+      );
       if (widget.onComplete != null) {
         widget.onComplete!(ageKey, root, pubKey);
         return;

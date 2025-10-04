@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 
 import '../pages/setup_page.dart';
+import '../services/log_bus.dart';
 
 class InstallCheckPage extends StatefulWidget {
   final VoidCallback? onContinue;
@@ -48,6 +49,18 @@ class _InstallCheckPageState extends State<InstallCheckPage> {
         log = 'All required tools are installed.';
       }
     });
+    if (!ageOk) {
+      LogBus.instance.warn('age not found on PATH', scope: 'Requirements');
+    }
+    if (!sopsOk) {
+      LogBus.instance.warn('sops not found on PATH', scope: 'Requirements');
+    }
+    if (ageOk && sopsOk) {
+      LogBus.instance.info(
+        'All required tools are installed.',
+        scope: 'Requirements',
+      );
+    }
   }
 
   Future<bool> _isInstalled(String cmd, List<String> args) async {

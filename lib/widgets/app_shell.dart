@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../pages/install_check_page.dart';
 import '../pages/setup_page.dart';
 import '../pages/manage_page.dart';
+import '../pages/onboarding_stepper.dart';
 
 class AppShell extends StatefulWidget {
   final ThemeMode themeMode;
@@ -23,9 +24,12 @@ class _AppShellState extends State<AppShell> {
   String? _lastProjectRoot;
   String? _lastIdentityPath;
   bool _loaded = false;
+  bool _onboardingComplete = false;
+  bool _navigatedOnboarding = false;
 
   static const _kRootKey = 'lastProjectRoot';
   static const _kIdKey = 'lastAgeIdentityPath';
+  static const _kOnboarding = 'onboardingComplete';
 
   @override
   void initState() {
@@ -36,11 +40,21 @@ class _AppShellState extends State<AppShell> {
   Future<void> _loadPrefs() async {
     try {
       final prefs = await SharedPreferences.getInstance();
+      _lastProjectRoot = prefs.getString(_kRootKey);
+      _lastIdentityPath = prefs.getString(_kIdKey);
+      _onboardingComplete = prefs.getBool(_kOnboarding) ?? false;
       setState(() {
-        _lastProjectRoot = prefs.getString(_kRootKey);
-        _lastIdentityPath = prefs.getString(_kIdKey);
         _loaded = true;
       });
+      // Auto-launch onboarding if needed
+      if ((!_onboardingComplete) ||
+          _lastProjectRoot == null ||
+          _lastIdentityPath == null) {
+        if (!_navigatedOnboarding) {
+          _navigatedOnboarding = true;
+          Future.microtask(_runOnboarding);
+        }
+      }
     } catch (_) {
       setState(() => _loaded = true);
     }
@@ -101,6 +115,34 @@ class _AppShellState extends State<AppShell> {
     );
   }
 
+  void _runOnboarding() {
+    if (!mounted) return;
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) =>
+            OnboardingStepperPage(appBarActions: [_buildThemeModeButton()]),
+      ),
+    );
+  }
+
+  Widget _buildOverflowMenu() {
+    return PopupMenuButton<String>(
+      icon: const Icon(Icons.more_vert),
+      onSelected: (v) {
+        if (v == 'onboarding') _runOnboarding();
+      },
+      itemBuilder: (context) => const [
+        PopupMenuItem(
+          value: 'onboarding',
+          child: ListTile(
+            leading: Icon(Icons.directions_walk),
+            title: Text('Run onboarding again'),
+          ),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isWide = MediaQuery.of(context).size.width >= 900;
@@ -118,7 +160,7 @@ class _AppShellState extends State<AppShell> {
         case 0:
           page = InstallCheckPage(
             onContinue: () => setState(() => _index = 1),
-            appBarActions: [_buildThemeModeButton()],
+            appBarActions: [],
           );
           break;
         case 1:
@@ -127,7 +169,7 @@ class _AppShellState extends State<AppShell> {
               await _savePaths(root, ageKey);
               if (mounted) setState(() => _index = 2);
             },
-            appBarActions: [_buildThemeModeButton()],
+            appBarActions: [],
           );
           break;
         default:
@@ -135,7 +177,7 @@ class _AppShellState extends State<AppShell> {
             page = ManagePage(
               projectRoot: _lastProjectRoot!,
               ageIdentityPath: _lastIdentityPath!,
-              appBarActions: [_buildThemeModeButton()],
+              appBarActions: [],
             );
           } else {
             page = Center(
@@ -181,7 +223,7 @@ class _AppShellState extends State<AppShell> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('SOPS Manager'),
-        actions: [_buildThemeModeButton()],
+        actions: [_buildThemeModeButton(), _buildOverflowMenu()],
       ),
       body: Row(
         children: [

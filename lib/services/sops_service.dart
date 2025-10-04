@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -295,60 +296,17 @@ class SopsService {
     return updatedCount;
   }
 
-  static Future<List<String>> findSopsFiles(String root) async {
+  static Future<List<String>> findSopsFiles(
+    String root, {
+    bool includeNonSops = false,
+  }) async {
     final result = <String>[];
     final dir = Directory(root);
     if (!await dir.exists()) return result;
 
-    // Helper: read path_regex patterns from .sops.yaml at project root.
-    Future<List<RegExp>> _readPathRegexps() async {
-      final regexps = <RegExp>[];
-      try {
-        final cfgPath = FilePath.join(root, '.sops.yaml');
-        final cfgFile = File(cfgPath);
-        if (await cfgFile.exists()) {
-          final content = await cfgFile.readAsString();
-          final lines = const LineSplitter().convert(content);
-          // Matches: path_regex: '...'
-          final pattern = RegExp(
-            r'path_regex\s*:\s*(?:([\x22\x27])(.*?)\1|(.*))',
-          );
-          for (final raw in lines) {
-            final line = raw.trim();
-            final m = pattern.firstMatch(line);
-            if (m != null) {
-              var value = (m.group(2) ?? m.group(3) ?? '').trim();
-              // Trim inline comments for unquoted values only
-              if (m.group(2) == null) {
-                final hash = value.indexOf(' #');
-                if (hash != -1) value = value.substring(0, hash).trim();
-              }
-              if (value.isNotEmpty) {
-                try {
-                  regexps.add(RegExp(value));
-                } catch (_) {
-                  // Skip invalid regex
-                }
-              }
-            }
-          }
-        }
-      } catch (_) {
-        // ignore config read/parse errors and use fallback
-      }
-      if (kDebugMode) {
-        print(regexps);
-      }
-      if (regexps.isEmpty) {
-        // Fallback to the historical default
-        regexps.add(RegExp(r'.*\.(yaml|yml|json|env)$'));
-      }
-      return regexps;
-    }
-
     String _norm(String p) => p.replaceAll('\\', '/');
 
-    final pathRegexps = await _readPathRegexps();
+    final pathRegexps = await _readPathRegexpsFromConfig(root);
 
     await for (final entity in dir.list(recursive: true, followLinks: false)) {
       if (entity is File) {
@@ -371,7 +329,9 @@ class SopsService {
         if (len > 5 * 1024 * 1024) continue; // skip very large files
         try {
           final content = await entity.readAsString();
-          result.add(rel);
+          if (includeNonSops || _hasSopsMarker(content, _extension(name))) {
+            result.add(rel);
+          }
         } catch (_) {
           // ignore unreadable files
         }
@@ -379,6 +339,120 @@ class SopsService {
     }
     return result;
   }
+
+  static Future<List<RegExp>> _readPathRegexpsFromConfig(String root) async {
+    final regexps = <RegExp>[];
+    try {
+      final cfgPath = FilePath.join(root, '.sops.yaml');
+      final cfgFile = File(cfgPath);
+      if (await cfgFile.exists()) {
+        final content = await cfgFile.readAsString();
+        final lines = const LineSplitter().convert(content);
+        final pattern = RegExp(
+          r'path_regex\s*:\s*(?:([\x22\x27])(.*?)\1|(.*))',
+        );
+        for (final raw in lines) {
+          final line = raw.trim();
+          final m = pattern.firstMatch(line);
+          if (m != null) {
+            var value = (m.group(2) ?? m.group(3) ?? '').trim();
+            if (m.group(2) == null) {
+              final hash = value.indexOf(' #');
+              if (hash != -1) value = value.substring(0, hash).trim();
+            }
+            if (value.isNotEmpty) {
+              try {
+                regexps.add(RegExp(value));
+              } catch (_) {}
+            }
+          }
+        }
+      }
+    } catch (_) {}
+    if (regexps.isEmpty) {
+      regexps.add(RegExp(r'.*\.(yaml|yml|json|env)$'));
+    }
+    return regexps;
+  }
+
+  static Future<List<String>> listPathRegexps(String root) async {
+    final regs = await _readPathRegexpsFromConfig(root);
+    return regs.map((r) => r.pattern).toList();
+  }
+
+  static bool _hasSopsMarker(String content, String ext) {
+    // quick heuristics for YAML/JSON
+    if (ext == '.json') {
+      return RegExp(r'"sops"\s*:').hasMatch(content);
+    }
+    return RegExp(r'^sops\s*:\s*', multiLine: true).hasMatch(content);
+  }
+
+  static Future<Set<String>> readRecipients(String sopsPath) async {
+    final file = File(sopsPath);
+    final recipients = <String>{};
+    if (!await file.exists()) return recipients;
+    final lines = const LineSplitter().convert(await file.readAsString());
+    bool inAge = false;
+    int ageIndent = 0;
+    int indentOf(String s) => s.length - s.trimLeft().length;
+    for (int i = 0; i < lines.length; i++) {
+      final ln = lines[i];
+      final t = ln.trimLeft();
+      final ind = indentOf(ln);
+      if (t.startsWith('age:')) {
+        inAge = true;
+        ageIndent = ind;
+        continue;
+      }
+      if (inAge) {
+        if (t.isEmpty) continue;
+        if (ind <= ageIndent) {
+          inAge = false;
+          continue;
+        }
+        final m = RegExp(r'-\s*(\S+)').firstMatch(t);
+        if (m != null) recipients.add(m.group(1)!);
+      }
+    }
+    return recipients;
+  }
+
+  static Future<List<ProcResult>> runBatch(
+    List<String> files,
+    List<String> Function(String file) argsBuilder, {
+    required String cwd,
+    String? identityPath,
+    int concurrency = 4,
+    void Function(String file, ProcResult res)? onProgress,
+  }) async {
+    final results = <ProcResult>[];
+    final sem = _Semaphore(concurrency);
+    final futures = <Future<void>>[];
+    for (final f in files) {
+      await sem.acquire();
+      final fut = () async {
+        try {
+          final res = await runSops(
+            argsBuilder(f),
+            cwd: cwd,
+            identityPath: identityPath,
+          );
+          results.add(res);
+          if (onProgress != null) onProgress(f, res);
+        } finally {
+          sem.release();
+        }
+      }();
+      futures.add(fut);
+    }
+    await Future.wait(futures);
+    return results;
+  }
+
+  // Simple semaphore
+  // ignore: unused_element
+  static _Semaphore _unused() => _Semaphore(1);
 
   static String _extension(String name) {
     final i = name.lastIndexOf('.');
@@ -415,6 +489,30 @@ class SopsService {
       );
     } catch (e) {
       return ProcResult(127, '', e.toString());
+    }
+  }
+}
+
+class _Semaphore {
+  int _available;
+  final _waiters = <Completer<void>>[];
+  _Semaphore(this._available);
+  Future<void> acquire() async {
+    if (_available > 0) {
+      _available--;
+      return;
+    }
+    final c = Completer<void>();
+    _waiters.add(c);
+    return c.future;
+  }
+
+  void release() {
+    if (_waiters.isNotEmpty) {
+      final c = _waiters.removeAt(0);
+      c.complete();
+    } else {
+      _available++;
     }
   }
 }
